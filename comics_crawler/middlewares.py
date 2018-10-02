@@ -32,7 +32,7 @@ class RandomProxyIpMiddleware(object):
         proxy = FreeProxies().random_elite
 
         while not RandomProxyIpMiddleware.check_connection(proxy, spider):
-            spider.logger.debug('PROXY {} NON VALIDO NE PRENDO UN ALTRO'.format(proxy))
+            spider.logger.debug('PROXY {} NOT VALID. GET ANOTHER!'.format(proxy))
             proxy = FreeProxies().random_elite
 
         request.meta['proxy'] = proxy
