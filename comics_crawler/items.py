@@ -10,5 +10,12 @@ import scrapy
 
 class ComicsCrawlerItem(scrapy.Item):
     # define the fields for your item here like:
-    # name = scrapy.Field()
-    pass
+    series = scrapy.Field()
+    title = scrapy.Field()
+    date = scrapy.Field()
+    editor = scrapy.Field()
+    pages = scrapy.Field()
+    scripts = scrapy.Field()
+    arts = scrapy.Field()
+    inks = scrapy.Field()
+    colors = scrapy.Field()

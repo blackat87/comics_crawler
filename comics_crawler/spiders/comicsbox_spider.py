@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import scrapy
-from scrapy.utils.log import configure_logging
 from scrapy.spidermiddlewares.httperror import HttpError
 from twisted.internet.error import DNSLookupError, TimeoutError, TCPTimedOutError
 
@@ -11,18 +10,15 @@ class ComicsBoxSpider(scrapy.Spider):
     #is used by the default implementation of start_requests()
     #to create the initial requests for your spider
     start_urls = [
-        'http://www.comicsbox.it/albo_ita_editore.php',
+        'http://www.comicsbox.it/albo_ita_alpha.php',
+        'http://www.comicsbox.it/comicsusa_alpha.php',
+        'http://www.comicsbox.it/bandedessinee_alpha.php',
     ]
 
     def errback(self, failure):
         """
+        Handles an error and log it
         """
-        """Handles an error"""
-        return {
-            'url': err.request.url,
-            'status': 'error_downloading_http_response',
-            'message': str(err.value),
-        }
         # log all failures
         self.logger.error(repr(failure))
 
@@ -33,69 +29,100 @@ class ComicsBoxSpider(scrapy.Spider):
             # these exceptions come from HttpError spider middleware
             # you can get the non-200 response
             response = failure.value.response
-            self.logger.error('HttpError on %s', response.url)
+            self.logger.error(message='HttpError on {}'.format(response.url))
+            print('HttpError on {}'.format(response.url))
 
         elif failure.check(DNSLookupError):
             # this is the original request
             request = failure.request
-            self.logger.error('DNSLookupError on %s', request.url)
+            self.logger.error(message='DNSLookupError on url {}. \n Message: {}'.format(request.url, str(failure.value)) )
 
         elif failure.check(TimeoutError, TCPTimedOutError):
             request = failure.request
-            self.logger.error('TimeoutError on %s', request.url)
+            self.logger.error(message='TimeoutError on url {}. \n Message: {}'.format(request.url, str(failure.value)))
 
     def parse(self, response):
         """
-            recursively follow the link to the italian editor pages, extracting data from it
+        Recursively follow the link to the series
         """
-        # follow links to italian editor pages
-        for href in response.xpath('//table[@id="lista-table"]//a/@href').extract()[100:]:
-            print('href', href, response.urljoin(href))
-            yield scrapy.Request(response.urljoin(href), callback=self.parse_editor, errback=self.errback)
+        series_links = response.xpath('//table[@id="lista-table"]//span[@class="title"]/a/@href').extract()
+        self.logger.info('SERIES LINK: {}'.format(len(series_links)))
+        for href in series_links:
+            self.logger.debug('href: {} {}'.format(href, response.urljoin(href)))
+            yield scrapy.Request(response.urljoin(href), callback=self.parse_series, errback=self.errback)
 
-    def parse_editor(self, response):
+    def parse_series(self, response):
         """
-            recursively follow the link to the italian editor pages, extracting data from it
+        Recursively follow the link to the issues
         """
-        for href in response.xpath('//table[@id="lista-table"]//span[@class="title2"]/a/@href').extract():
-            print('href', href, response.urljoin(href))
+        issues_links = response.xpath('//table[@id="lista-table"]//span[@class="title2"]/a/@href').extract()
+        for href in issues_links:
             yield scrapy.Request(response.urljoin(href), callback=self.parse_comic, errback=self.errback)
 
     def parse_comic(self, response):
+        """
+        Get data of the comic
+        """
+        try:
+            editor = response.xpath("//span[@id='editore_issue']/text()").extract()[0].strip()
+        except IndexError:
+            self.logger.error('EDITOR list empty')
+            editor = ''
+        try:
+            data_issue = response.xpath("//span[@id='data_issue']/text()").extract()[0].strip()
+        except IndexError:
+            self.logger.error('DATA_ISSUE list empty')
+            data_issue = ''
 
-        editor = response.xpath("descendant-or-self::span[@id = 'data_issue']/text()").extract_first().replace('&nbsp','').split('|')[0].strip()
+        try:
+            series = response.xpath("//div[@id='intestazione']/h1/text()").extract()[0].strip()
+        except IndexError:
+            self.logger.error('SERIES list empty')
+            series = ''
 
-        elems = response.css('div.alboita_right')
-        #print 'elems', len(elems)
+        try:
+            elems = response.xpath("//div[@class = 'alboita_right']")
+        except IndexError:
+            self.logger.error('ELEMS list empty')
+            elems = []
 
         for elem in elems:
+            pages = elem.xpath('text()').extract()[0].replace('pagine','').strip()
 
-            tmp = elem.xpath('text()').extract()
-            pages = tmp[0].replace('pagine','').strip()
-            date = tmp[-1].strip().replace('(','').replace(')','')
+            tmp = {'scripts':set(), 'arts':set(), 'inks':set(), 'colors':set()}
+            div = elem.xpath("descendant-or-self::div[@class='alboita_dettagli']")
 
-            series = elem.xpath('./strong/a/text()').extract_first()
-            div = elem.xpath("descendant-or-self::div[@class = 'alboita_dettagli']")
-            text = [t for t in div.xpath('text()').extract() if t.strip()]
-            spans = div.xpath('./span/text()').extract()
-            tmp = {'script':set(), 'art':set(), 'inks':set()}
+            title = div.xpath("span[@class='titolo_storia']/strong/text()").extract()[0].strip()
 
-            for n, s in enumerate(spans):
-                type = text[n+1].replace('/','').replace('(','').replace(')','').strip().lower()
-                try:
-                    tmp[type].add(s)
-                except:
-                    continue
+            roles = [t.replace('/','').replace('(','').replace(')','').strip().lower().strip() for t in div.xpath('text()').extract() if t.strip()][1:]
+            authors = div.xpath('a/text()').extract()
 
-            title = div.xpath('./span/strong/text()').extract_first()
+            for x, y in zip(authors, roles):
+                if y not in tmp:
+                    if y == 'color':
+                        y = 'colors'
+                    elif y == 'ink':
+                        y = 'inks'
+                    elif y == 'art':
+                        y = 'arts'
+                    elif y == 'script':
+                        y = 'scripts'
+                    else:
+                        self.logger.debug('NEW ROLE>>> {} editor: {} series: {} title: {}'.format(y, editor, series, title))
+                        tmp[y] = set()
 
-            yield {
+                tmp[y].add(x.strip())
+
+            data = {
                 'series': series,
                 'title': title,
-                'script': list(tmp['script']),
-                'art': list(tmp['art']),
-                'inks': list(tmp['inks']),
-                'date' : date,
+                'date' : data_issue,
                 'editor' : editor,
                 'pages' : pages,
             }
+            for k,v in tmp.items():
+                data[k] = list(v)
+
+            self.logger.info('DATA>>> {}'.format(data))
+
+            yield data

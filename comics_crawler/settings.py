@@ -14,41 +14,28 @@ BOT_NAME = 'comics_crawler'
 SPIDER_MODULES = ['comics_crawler.spiders']
 NEWSPIDER_MODULE = 'comics_crawler.spiders'
 
-
-CLOSESPIDER_PAGECOUNT = 1000
-CLOSESPIDER_TIMEOUT = 3600
-
-RETRY_ENABLED = False
-RETRY_TIMES = 0
-
-# Crawl responsibly by identifying yourself (and your website) on the user-agent
-#USER_AGENT = 'comics_crawler (+http://www.yourdomain.com)'
+#Enabled RetryMiddleware
+RETRY_ENABLED = True
+RETRY_TIMES = 2
+RETRY_HTTP_CODES = [500, 502, 503, 504]
 
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = True
 
-# Configure maximum concurrent requests performed by Scrapy (default: 16)
-#CONCURRENT_REQUESTS = 32
-
 # Configure a delay for requests for the same website (default: 0)
 # See https://doc.scrapy.org/en/latest/topics/settings.html#download-delay
 # See also autothrottle settings and docs
-#DOWNLOAD_DELAY = 3
 # The download delay setting will honor only one of:
 CONCURRENT_REQUESTS_PER_DOMAIN = 1
-#CONCURRENT_REQUESTS_PER_IP = 16
 
 # Disable cookies (enabled by default)
 COOKIES_ENABLED = False
 
-# Disable Telnet Console (enabled by default)
-#TELNETCONSOLE_ENABLED = False
-
 # Override the default request headers:
-#DEFAULT_REQUEST_HEADERS = {
-#   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-#   'Accept-Language': 'en',
-#}
+DEFAULT_REQUEST_HEADERS = {
+   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+   'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+}
 
 # Enable or disable spider middlewares
 # See https://doc.scrapy.org/en/latest/topics/spider-middleware.html
@@ -60,21 +47,9 @@ COOKIES_ENABLED = False
 # See https://doc.scrapy.org/en/latest/topics/downloader-middleware.html
 DOWNLOADER_MIDDLEWARES = {
 #    'comics_crawler.middlewares.ComicsCrawlerDownloaderMiddleware': 543,
-    'comics_crawler.middlewares.RandomProxyIp': 1,
-    'comics_crawler.middlewares.RandomUserAgent': 2,
+    'comics_crawler.middlewares.RandomProxyIpMiddleware': 1,
+    'comics_crawler.middlewares.RandomUserAgentMiddleware': 2,
 }
-
-# Enable or disable extensions
-# See https://doc.scrapy.org/en/latest/topics/extensions.html
-#EXTENSIONS = {
-#    'scrapy.extensions.telnet.TelnetConsole': None,
-#}
-
-# Configure item pipelines
-# See https://doc.scrapy.org/en/latest/topics/item-pipeline.html
-#ITEM_PIPELINES = {
-#    'comics_crawler.pipelines.ComicsCrawlerPipeline': 300,
-#}
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://doc.scrapy.org/en/latest/topics/autothrottle.html
@@ -93,12 +68,19 @@ AUTOTHROTTLE_TARGET_CONCURRENCY = 1.0
 # Enable showing throttling stats for every response received:
 AUTOTHROTTLE_DEBUG = False
 
-# Enable and configure HTTP caching (disabled by default)
-# See https://doc.scrapy.org/en/latest/topics/downloader-middleware.html#httpcache-middleware-settings
-#HTTPCACHE_ENABLED = True
-#HTTPCACHE_EXPIRATION_SECS = 0
-#HTTPCACHE_DIR = 'httpcache'
-#HTTPCACHE_IGNORE_HTTP_CODES = []
-#HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
-
 HTTPERROR_ALLOWED_CODES = [404,403]
+
+#Configure FEED settings for data export
+import os
+
+full_path = os.path.realpath(__file__)
+dirpath = os.path.dirname(full_path)
+
+FEED_URI = 'file://%s/results/export_comicsbox.csv' % dirpath
+FEED_FORMAT = 'csv'
+FEED_EXPORT_ENCODING = 'utf-8'
+FEED_EXPORT_FIELDS = ['editor', 'series', 'date', 'pages', 'title', 'arts', 'scripts', 'inks', 'colors']
+
+LOG_FILE = 'comicsbox_log.txt'
+LOG_ENABLED = True
+LOG_ENCODING = 'utf-8'
